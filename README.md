@@ -8,6 +8,8 @@ Context ▬▬▬▬▬▬▬▬ 9%   5h ▬▬▬▬▬▬▬▬ 7% (↻ 04h33)
 
 Les jauges passent en jaune à 70 % et en rouge à 90 %. La commande `/usage-bar` affiche ou masque le bandeau.
 
+<img width="862" height="171" alt="image" src="https://github.com/user-attachments/assets/d1eef1e9-4801-4052-8590-e23b9de103bb" />
+
 ## Installation
 
 Dans une session Claude Code (terminal) :
