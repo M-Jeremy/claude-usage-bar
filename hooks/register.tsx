@@ -3,8 +3,8 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { Snapshot } from '../types'
 
-const snapshot = atom({ plugin: 'usage-session', key: 'snapshot' } as const, null)
-const isHidden = atom({ plugin: 'usage-session', key: 'isHidden' } as const, false)
+const snapshot = atom({ plugin: 'usage-bar', key: 'snapshot' } as const, null)
+const isHidden = atom({ plugin: 'usage-bar', key: 'isHidden' } as const, false)
 
 const LABELS: Record<string, string> = {
   five_hour: '5h',
@@ -51,7 +51,7 @@ async function measure($: EngineInterface): Promise<void> {
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
-      name: 'usage-session',
+      name: 'usage-bar',
       description: "Afficher ou masquer le bandeau d'usage au-dessus du message",
     })
     await measure($)
@@ -59,7 +59,7 @@ export const register: Register = on => {
     return next(e)
   })
 
-  on('command.run', { command: 'usage-session' }, async $ => {
+  on('command.run', { command: 'usage-bar' }, async $ => {
     const hidden = await update($, isHidden, value => !value)
 
     return { text: hidden ? 'Bandeau d\'usage masqué.' : 'Bandeau d\'usage affiché.' }

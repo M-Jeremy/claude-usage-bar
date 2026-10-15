@@ -21,7 +21,7 @@ for (const surface of ['terminal', 'desktop', 'vscode'] as const) {
     on('session.measure', (_$, e) => ({ changed: e.changed }))
     await $.session.measure({ ...USAGE, changed: ['context'] })
     const pane = await $.ui.mount({
-      plugin: 'usage-session',
+      plugin: 'usage-bar',
       surface,
       component: 'AbovePrompt',
       props: { hasSurvey: false, isWorking: false, maxRows: 4, bodyColumns: 120, scroll: { offset: 0, bodyRows: 40 }, view: {} },

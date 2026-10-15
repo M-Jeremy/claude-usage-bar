@@ -10,6 +10,6 @@ export type Snapshot = {
 
 declare module 'claude-code' {
   interface PluginState {
-    'usage-session': { snapshot: Snapshot | null; isHidden: boolean }
+    'usage-bar': { snapshot: Snapshot | null; isHidden: boolean }
   }
 }
