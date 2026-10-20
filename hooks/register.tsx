@@ -16,11 +16,10 @@ const LABELS: Record<string, string> = {
 const MIN_SEGMENTS = 8
 const MAX_SEGMENTS = 40
 // L'éditeur et l'application annoncent une largeur fixe sans rapport avec la place réelle :
-// on suppose une ligne d'environ 110 caractères, la place observée dans le bandeau de l'éditeur.
-const REMOTE_COLUMNS = 110
-// Deux espaces entre deux jauges, un seul après le Context.
-const SEPARATOR_WIDTH = 2
-const CONTEXT_GAP = 1
+// on suppose une ligne d'environ 108 caractères, la place observée dans le bandeau de l'éditeur.
+const REMOTE_COLUMNS = 108
+// Un espace entre deux jauges.
+const SEPARATOR_WIDTH = 1
 // Une puce par segment, la part consommée en couleur de statut, le reste en gris sombre.
 const BULLET = '•'
 const EMPTY_COLOR = '#4a4a4a'
@@ -264,7 +263,7 @@ export const register: Register = (on, options) => {
               : [{ color: hue, text: percentText }]
 
           return (
-            <Box key={label} flexShrink={0} marginRight={k === gauges.length - 1 ? 0 : k === 0 ? CONTEXT_GAP : SEPARATOR_WIDTH}>
+            <Box key={label} flexShrink={0} marginRight={k === gauges.length - 1 ? 0 : SEPARATOR_WIDTH}>
               <Text wrap="truncate-end">
                 <Text dimColor>{label} </Text>
                 {[...runs, ...percentRuns].map(run => (
