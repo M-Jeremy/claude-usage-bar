@@ -16,8 +16,8 @@ const LABELS: Record<string, string> = {
 const MIN_SEGMENTS = 8
 const MAX_SEGMENTS = 40
 // L'éditeur et l'application annoncent une largeur fixe sans rapport avec la place réelle :
-// on suppose une ligne d'environ 106 caractères, la place observée dans le bandeau de l'éditeur.
-const REMOTE_COLUMNS = 106
+// on suppose une ligne d'environ 102 caractères, la place observée dans le bandeau de l'éditeur.
+const REMOTE_COLUMNS = 102
 // Un espace entre deux jauges.
 const SEPARATOR_WIDTH = 1
 // Une puce par segment, la part consommée en couleur de statut, le reste en gris sombre.

@@ -23,7 +23,7 @@ test("le contexte affiche l'évolution du tour et les tokens sur la fenêtre", (
 })
 
 test('les barres se partagent la place laissée par les textes', () => {
-  expect(segmentsFor(106, ['Context  100% +4% (74k/200k)', 'Session  100% (↻ 01h05)', 'Week  100% (↻ 67h45)'], 2)).toBe(16)
+  expect(segmentsFor(102, ['Context  100% +4% (74k/200k)', 'Session  100% (↻ 01h05)', 'Week  100% (↻ 67h45)'], 2)).toBe(14)
   expect(segmentsFor(30, ['Context  100%', '5h  100%'])).toBe(8)
 })
 
