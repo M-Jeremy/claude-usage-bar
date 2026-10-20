@@ -1,1 +1,14 @@
-{ "name": "usage-bar", "version": "0.1.0", "description": "Bandeau au-dessus du message : contexte et limites d'usage 5h et semaine", "types": "./types/index.d.ts" }
+{
+  "name": "usage-bar",
+  "version": "0.1.0",
+  "description": "Bandeau au-dessus du message : contexte et limites d'usage 5h et semaine",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "accent": {
+      "type": "string",
+      "title": "Couleur d'accent",
+      "description": "Couleur des puces, de la houle et des clignotements, en hexadécimal (#e8876a)",
+      "default": "#e8876a"
+    }
+  }
+}
