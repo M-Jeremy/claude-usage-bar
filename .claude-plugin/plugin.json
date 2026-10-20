@@ -1,8 +1,7 @@
 {
   "name": "usage-bar",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Bandeau au-dessus du message : contexte et limites d'usage 5h et semaine",
-  "types": "./types/index.d.ts",
   "userConfig": {
     "accent": {
       "type": "string",

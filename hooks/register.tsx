@@ -153,20 +153,25 @@ function ensureTicker($: EngineInterface): void {
   stopTick = () => timer.cancel()
 }
 
+async function startTurn($: EngineInterface): Promise<void> {
+  // Bandeau masqué : aucune animation à faire tourner.
+  if (await read($, isHidden)) return
+  const from = percentsOf(await read($, snapshot))
+  await update($, anim, (): Anim => ({ phase: 'work', t: 0, from, flash: [] }))
+  ensureTicker($)
+}
+
 export const register: Register = (on, options) => {
   const accent = accentOf(options.accent)
   stopTick = undefined
 
+  // Ces deux crochets encadrent l'envoi d'un message et chaque outil : si le bandeau échoue,
+  // le .catch laisse le message ou l'outil suivre son cours.
   on('prompt.submit', async ($, e, next) => {
-    // Bandeau masqué : aucune animation à faire tourner.
-    if (!(await read($, isHidden))) {
-      const from = percentsOf(await read($, snapshot))
-      await update($, anim, (): Anim => ({ phase: 'work', t: 0, from, flash: [] }))
-      ensureTicker($)
-    }
+    await startTurn($)
 
     return next(e)
-  })
+  }).catch(($, e, next) => next(e))
 
   // Chaque outil terminé suit une réponse du modèle : les pourcentages avancent en direct.
   on('tool.call', async ($, e, next) => {
@@ -174,7 +179,7 @@ export const register: Register = (on, options) => {
     await measure($)
 
     return result
-  })
+  }).catch(($, e, next) => next(e))
 
   on('turn.complete', async ($, e, next) => {
     await measure($)
