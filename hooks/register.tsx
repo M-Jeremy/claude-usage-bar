@@ -16,8 +16,8 @@ const LABELS: Record<string, string> = {
 const MIN_SEGMENTS = 8
 const MAX_SEGMENTS = 40
 // L'éditeur et l'application annoncent une largeur fixe sans rapport avec la place réelle :
-// on suppose une ligne d'environ 108 caractères, la place observée dans le bandeau de l'éditeur.
-const REMOTE_COLUMNS = 108
+// on suppose une ligne d'environ 106 caractères, la place observée dans le bandeau de l'éditeur.
+const REMOTE_COLUMNS = 106
 // Un espace entre deux jauges.
 const SEPARATOR_WIDTH = 1
 // Une puce par segment, la part consommée en couleur de statut, le reste en gris sombre.
@@ -223,7 +223,7 @@ export const register: Register = (on, options) => {
 
     const contextValue = snap.context.percent ?? 0
     // Le contexte n'a pas de barre : son pourcentage, l'évolution du dernier tour et les tokens sur la fenêtre.
-    const contextSuffix = `${deltaLabel(contextValue, state.from[0])} (${tokensLabel(snap.context.tokens ?? 0)} / ${tokensLabel(snap.context.window)})`
+    const contextSuffix = `${deltaLabel(contextValue, state.from[0])} (${tokensLabel(snap.context.tokens ?? 0)}/${tokensLabel(snap.context.window)})`
     const gauges = [
       { label: 'Context', value: contextValue, suffix: contextSuffix, hasBar: false },
       ...snap.rateLimits.map(limit => ({
