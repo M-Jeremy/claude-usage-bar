@@ -1,10 +1,8 @@
 # usage-bar
 
-A Claude Code mod that shows, above the message box, a line with how full the context is and the session (5h) and weekly usage limits, with the time left before they reset.
-
-```
-Context 37% +4% (74k / 200k)  Session •••••••••••••••••• 15% (↻ 03h46)  Week •••••••••••••••••• 24% (↻ 65h26)
-```
+A Claude Code mod that shows, above the message box, a line with how full the context, session (5h) and weekly usage limits are, with the time left before they reset.
+<img width="858" height="162" alt="image" src="https://github.com/user-attachments/assets/491f01c6-443c-4c9d-8e74-12dbf9dc3cc3" />
+<img width="860" height="161" alt="image" src="https://github.com/user-attachments/assets/8cdef9f7-fb50-457c-ad5d-03ffabf5a766" />
 
 Context shows its percentage, what the last turn added and the tokens used out of the window. The gauges turn yellow at 70 % and red at 90 %. While Claude is working, a wave runs across the bar. The `/usage-bar` command shows or hides the bar.
 
