@@ -6,6 +6,14 @@ A Claude Code mod that shows, above the message box, a line with how full the co
 
 Context shows its percentage, what the last turn added and the tokens used out of the window. The gauges turn yellow at 70 % and red at 90 %. While Claude is working, a wave runs across the bar. The `/usage-bar` command shows or hides the bar.
 
+An **optional** stats line can be shown above the bar:
+
+<img width="858" height="187" alt="image" src="https://github.com/user-attachments/assets/f04c3c08-f88c-4f95-9270-d83230373357" />
+
+It shows how long the last run took, how many tools it used, the tokens sent and received, and what it cost, followed by the total cost of the conversation (the same as `/cost`). While Claude is working, the duration and tool count update live.
+
+Costs are estimates at API list prices; with a Claude subscription, they are not what you are billed.
+
 ## Installation
 
 In a Claude Code session (terminal):
@@ -28,6 +36,7 @@ claude plugin install usage-bar --marketplace M-Jeremy/claude-usage-bar
 
 In the desktop app: click + next to the message box, then Plugins, Add marketplace with `M-Jeremy/claude-usage-bar`, then Add plugin.
 
+# Options
 ## Change the color
 
 The accent color is orange by default. To change it, add this to your `~/.claude/settings.json`, with the color of your choice as a hex code:
@@ -37,3 +46,13 @@ The accent color is orange by default. To change it, add this to your `~/.claude
   "usage-bar@claude-usage-bar": { "options": { "accent": "#4ec98a" } }
 }
 ```
+## Show the stats line
+
+The stats line is hidden by default. To show it, add `showStats` to your `~/.claude/settings.json`:
+
+```json
+"pluginConfigs": {
+  "usage-bar@claude-usage-bar": { "options": { "showStats": true } }
+}
+```
+
