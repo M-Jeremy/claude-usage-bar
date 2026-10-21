@@ -1,11 +1,12 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Anim, Snapshot } from '../types'
+import type { Anim, LastTurn, Snapshot } from '../types'
 
 const snapshot = atom({ plugin: 'usage-bar', key: 'snapshot' } as const, null)
 const isHidden = atom({ plugin: 'usage-bar', key: 'isHidden' } as const, false)
 const anim = atom({ plugin: 'usage-bar', key: 'anim' } as const, { phase: 'idle', t: 0, from: [], flash: [] })
+const lastTurn = atom({ plugin: 'usage-bar', key: 'lastTurn' } as const, null)
 
 const LABELS: Record<string, string> = {
   five_hour: 'Session',
@@ -92,9 +93,13 @@ export const isFlashing = (anim: Anim, k: number): boolean => {
   return anim.phase === 'work' && at !== undefined && msOf(anim.t - at) < FLASH_MS
 }
 
-// Un nombre de tokens en milliers ou en millions : 74k, 1M.
+// Un nombre de tokens tel quel sous 1 000, sinon en milliers ou en millions : 640, 74k, 1M.
 export const tokensLabel = (tokens: number): string =>
-  tokens >= 1_000_000 ? `${Math.round(tokens / 100_000) / 10}M` : `${Math.round(tokens / 1000)}k`
+  tokens >= 1_000_000
+    ? `${Math.round(tokens / 100_000) / 10}M`
+    : tokens >= 1000
+      ? `${Math.round(tokens / 1000)}k`
+      : `${Math.round(tokens)}`
 
 // Ce que le dernier tour a changé, en points : +4%, −2% ; rien quand il n'a rien changé.
 export const deltaLabel = (value: number, from: number | undefined): string => {
@@ -102,6 +107,79 @@ export const deltaLabel = (value: number, from: number | undefined): string => {
 
   return delta > 0 ? ` +${delta}%` : delta < 0 ? ` −${-delta}%` : ''
 }
+
+// Durée d'un tour : 42s, 1m24s, 1h02m.
+export const elapsed = (ms: number): string => {
+  const seconds = Math.max(0, Math.round(ms / 1000))
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m${String(seconds % 60).padStart(2, '0')}s`
+
+  return `${Math.floor(minutes / 60)}h${String(minutes % 60).padStart(2, '0')}m`
+}
+
+// La ligne du dernier tour : durée, outils, tokens envoyés et générés et coût, puis coût total estimé de la conversation.
+const UP = '🡅'
+const DOWN = '🡇'
+
+const isCount = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n)
+const dollars = (usd: number): string => `$${usd.toFixed(2)}`
+
+// Pendant un tour, les chiffres des tokens et du coût deviennent des paires de points côte à côte qui alternent
+// entre deux lignes de la case ; unités, points et longueur restent ceux du run précédent.
+const SPINNER = '⠒⠤'
+// Nombre d'images entre deux positions des paires, soit environ 0,5 s.
+const SPINNER_TICKS = 4
+// Sans run précédent, un gabarit : deux chiffres en millions pour l'envoi, un en milliers pour la réception.
+const BLANK_RUN: LastTurn = { durationMs: 0, sent: 10_000_000, received: 1000, tools: 0, costUsd: 0 }
+
+// Toutes les paires changent de ligne en même temps.
+const spinDigits = (text: string, frame: number): string =>
+  text.replace(/\d/g, SPINNER[Math.floor(frame / SPINNER_TICKS) % SPINNER.length] ?? '')
+
+// Un morceau de la ligne, dans la couleur d'accent ou en gris.
+export type StatSegment = { text: string; isAccent: boolean }
+
+const seg = (text: string, isAccent = false): StatSegment => ({ text, isAccent })
+const toolsLabel = (n: number): string => (n === 1 ? ' tool' : ' tools')
+
+// Le tour en cours : durée et outils en direct dans l'accent, tokens et coût en paires de points.
+export type LiveRun = { frame: number; elapsedMs: number; tools: number }
+
+// Les stats du dernier run entre crochets, puis le coût total : Last run [9s · 2 tools · 🡅12k 🡇3k · $0.12] - Total cost ~$1.42
+export const turnSegments = (turn: LastTurn | null, sessionUsd?: number, live?: LiveRun): StatSegment[] => {
+  const dot = seg('  ·  ', true)
+  const out: StatSegment[] = []
+  if (live) {
+    const shape = turn ?? BLANK_RUN
+    out.push(seg('Last run '), seg('['), seg(elapsed(live.elapsedMs), true), dot)
+    out.push(seg(String(live.tools), true), seg(toolsLabel(live.tools)), dot)
+    out.push(
+      seg(
+        `${UP}${spinDigits(tokensLabel(shape.sent), live.frame)} ${DOWN}${spinDigits(tokensLabel(shape.received), live.frame)}`,
+      ),
+    )
+    if (isCount(shape.costUsd)) out.push(dot, seg(spinDigits(dollars(shape.costUsd), live.frame)))
+    out.push(seg(']'))
+  } else if (turn) {
+    out.push(seg('Last run '), seg('['), seg(elapsed(turn.durationMs)), dot)
+    out.push(seg(`${turn.tools}${toolsLabel(turn.tools)}`), dot)
+    out.push(seg(`${UP}${tokensLabel(turn.sent)} ${DOWN}${tokensLabel(turn.received)}`))
+    if (isCount(turn.costUsd)) out.push(dot, seg(dollars(turn.costUsd)))
+    out.push(seg(']'))
+  }
+  if (isCount(sessionUsd)) {
+    if (out.length > 0) out.push(seg('  -  ', true))
+    out.push(seg(`Total cost ~${dollars(sessionUsd)}`))
+  }
+
+  return out
+}
+
+export const turnLine = (turn: LastTurn | null, sessionUsd?: number, live?: LiveRun): string =>
+  turnSegments(turn, sessionUsd, live)
+    .map(part => part.text)
+    .join('')
 
 export const duration = (ms: number): string => {
   const minutes = Math.max(0, Math.floor(ms / 60000))
@@ -121,10 +199,11 @@ const percentsOf = (snap: Snapshot | null): number[] =>
   snap ? [snap.context.percent ?? 0, ...snap.rateLimits.map(limit => limit.percentUsed)] : []
 
 async function measure($: EngineInterface): Promise<void> {
-  const { context, rateLimits } = await $.session.usage()
+  const { context, rateLimits, cost } = await $.session.usage()
   const next: Snapshot = {
     context: { tokens: context.tokens, window: context.window, percent: context.percent },
     rateLimits,
+    costUsd: cost?.usd,
     measuredAt: await $.clock.now(),
   }
   const before = percentsOf(await read($, snapshot))
@@ -139,6 +218,10 @@ async function measure($: EngineInterface): Promise<void> {
 }
 
 let stopTick: (() => void) | undefined
+// Appels d'outils du tour en cours, sous-agents compris.
+let toolsThisTurn = 0
+// Coût de la session au début du tour, pour en déduire le coût du tour.
+let costAtStart: number | undefined
 
 // L'horloge des animations : elle tourne pendant un tour et s'arrête à sa fin.
 function ensureTicker($: EngineInterface): void {
@@ -154,6 +237,8 @@ function ensureTicker($: EngineInterface): void {
 }
 
 async function startTurn($: EngineInterface): Promise<void> {
+  toolsThisTurn = 0
+  costAtStart = (await read($, snapshot))?.costUsd
   // Bandeau masqué : aucune animation à faire tourner.
   if (await read($, isHidden)) return
   const from = percentsOf(await read($, snapshot))
@@ -163,6 +248,8 @@ async function startTurn($: EngineInterface): Promise<void> {
 
 export const register: Register = (on, options) => {
   const accent = accentOf(options.accent)
+  // La ligne de statistiques au-dessus des jauges, affichée seulement si le réglage showStats vaut true.
+  const showStats = options.showStats === true
   stopTick = undefined
 
   // Ces deux crochets encadrent l'envoi d'un message et chaque outil : si le bandeau échoue,
@@ -176,6 +263,7 @@ export const register: Register = (on, options) => {
   // Chaque outil terminé suit une réponse du modèle : les pourcentages avancent en direct.
   on('tool.call', async ($, e, next) => {
     const result = await next(e)
+    toolsThisTurn += 1
     await measure($)
 
     return result
@@ -183,7 +271,23 @@ export const register: Register = (on, options) => {
 
   on('turn.complete', async ($, e, next) => {
     await measure($)
-    await update($, anim, (a): Anim => ({ ...a, phase: 'idle', t: 0 }))
+    // La fin du tour d'un sous-agent ne termine pas celui de la conversation.
+    if (!e.agentId) {
+      await update($, anim, (a): Anim => ({ ...a, phase: 'idle', t: 0 }))
+      const after = (await read($, snapshot))?.costUsd
+      const usage = e.usage
+      await update(
+        $,
+        lastTurn,
+        (): LastTurn => ({
+          durationMs: e.durationMs,
+          sent: usage ? usage.input_tokens + usage.cache_read_input_tokens + usage.cache_creation_input_tokens : 0,
+          received: usage?.output_tokens ?? 0,
+          costUsd: isCount(costAtStart) && isCount(after) ? after - costAtStart : undefined,
+          tools: toolsThisTurn,
+        }),
+      )
+    }
 
     return next(e)
   })
@@ -245,40 +349,54 @@ export const register: Register = (on, options) => {
       gauges.filter(gauge => gauge.hasBar).length,
     )
 
-    return (
-      <Box flexDirection="row" flexWrap="wrap" rowGap={0}>
-        {gauges.map(({ label, value, suffix, hasBar }, k) => {
-          const hue = statusHex(value)
-          const to = filledOf(value, segments)
-          // Les puces voisines de même couleur partagent un seul texte.
-          const runs: { color: string; text: string }[] = []
-          for (let i = 0; i < (hasBar ? segments : 0); i++) {
-            const color = paint(shade(state, k * segments + i, i, to, accent, hue), value)
-            const last = runs[runs.length - 1]
-            if (last && last.color === color) last.text += BULLET
-            else runs.push({ color, text: BULLET })
-          }
-          const percentText = `${hasBar ? ' ' : ''}${value}%`
-          // Pendant le tour, la houle passe aussi sur le pourcentage du contexte, caractère par caractère,
-          // sauf quand il vient de gagner un point et s'allume dans la couleur d'accent.
-          const percentRuns = isFlashing(state, k)
-            ? [{ color: accent, text: percentText }]
-            : !hasBar && state.phase === 'work'
-              ? [...percentText].map((text, i) => ({ color: shadow(state, i, hue) ?? hue, text }))
-              : [{ color: hue, text: percentText }]
+    const live =
+      state.phase === 'work' ? { frame: state.t, elapsedMs: state.t * TICK_MS, tools: toolsThisTurn } : undefined
+    const stats = showStats ? turnSegments(await read($, lastTurn), snap.costUsd, live) : []
+    // Les paires de points des tokens et du coût sont dans l'accent, comme les séparateurs.
+    const paintStat = (part: StatSegment) =>
+      part.text
+        .split(/([⠒⠤]+)/)
+        .map(piece =>
+          part.isAccent || /^[⠒⠤]+$/.test(piece) ? <Text color={accent}>{piece}</Text> : <Text dimColor>{piece}</Text>,
+        )
 
-          return (
-            <Box key={label} flexShrink={0} marginRight={k === gauges.length - 1 ? 0 : SEPARATOR_WIDTH}>
-              <Text wrap="truncate-end">
-                <Text dimColor>{label} </Text>
-                {[...runs, ...percentRuns].map(run => (
-                  <Text color={run.color}>{run.text}</Text>
-                ))}
-                <Text dimColor>{suffix}</Text>
-              </Text>
-            </Box>
-          )
-        })}
+    return (
+      <Box flexDirection="column">
+        {stats.length > 0 && <Text wrap="truncate-end">{stats.flatMap(paintStat)}</Text>}
+        <Box flexDirection="row" flexWrap="wrap" rowGap={0}>
+          {gauges.map(({ label, value, suffix, hasBar }, k) => {
+            const hue = statusHex(value)
+            const to = filledOf(value, segments)
+            // Les puces voisines de même couleur partagent un seul texte.
+            const runs: { color: string; text: string }[] = []
+            for (let i = 0; i < (hasBar ? segments : 0); i++) {
+              const color = paint(shade(state, k * segments + i, i, to, accent, hue), value)
+              const last = runs[runs.length - 1]
+              if (last && last.color === color) last.text += BULLET
+              else runs.push({ color, text: BULLET })
+            }
+            const percentText = `${hasBar ? ' ' : ''}${value}%`
+            // Pendant le tour, la houle passe aussi sur le pourcentage du contexte, caractère par caractère,
+            // sauf quand il vient de gagner un point et s'allume dans la couleur d'accent.
+            const percentRuns = isFlashing(state, k)
+              ? [{ color: accent, text: percentText }]
+              : !hasBar && state.phase === 'work'
+                ? [...percentText].map((text, i) => ({ color: shadow(state, i, hue) ?? hue, text }))
+                : [{ color: hue, text: percentText }]
+
+            return (
+              <Box key={label} flexShrink={0} marginRight={k === gauges.length - 1 ? 0 : SEPARATOR_WIDTH}>
+                <Text wrap="truncate-end">
+                  <Text dimColor>{label} </Text>
+                  {[...runs, ...percentRuns].map(run => (
+                    <Text color={run.color}>{run.text}</Text>
+                  ))}
+                  <Text dimColor>{suffix}</Text>
+                </Text>
+              </Box>
+            )
+          })}
+        </Box>
       </Box>
     )
   })

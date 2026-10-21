@@ -8,6 +8,12 @@
       "title": "Couleur d'accent",
       "description": "Couleur des puces, de la houle et des clignotements, en hexadécimal (#e8876a)",
       "default": "#e8876a"
+    },
+    "showStats": {
+      "type": "boolean",
+      "title": "Ligne de statistiques",
+      "description": "Afficher au-dessus des jauges la durée, les tokens, le cache, les outils et le coût du dernier tour, et le coût de la session",
+      "default": false
     }
   }
 }
