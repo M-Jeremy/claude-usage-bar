@@ -7,6 +7,7 @@ const snapshot = atom({ plugin: 'usage-bar', key: 'snapshot' } as const, null)
 const isHidden = atom({ plugin: 'usage-bar', key: 'isHidden' } as const, false)
 const anim = atom({ plugin: 'usage-bar', key: 'anim' } as const, { phase: 'idle', t: 0, from: [], flash: [] })
 const lastTurn = atom({ plugin: 'usage-bar', key: 'lastTurn' } as const, null)
+const labelBag = atom({ plugin: 'usage-bar', key: 'labelBag' } as const, [] as string[])
 
 const LABELS: Record<string, string> = {
   five_hour: 'Session',
@@ -144,15 +145,16 @@ const seg = (text: string, isAccent = false): StatSegment => ({ text, isAccent }
 const toolsLabel = (n: number): string => (n === 1 ? ' tool' : ' tools')
 
 // Le tour en cours : durée et outils en direct dans l'accent, tokens et coût en paires de points.
-export type LiveRun = { frame: number; elapsedMs: number; tools: number }
+export type LiveRun = { frame: number; elapsedMs: number; tools: number; label?: string }
 
-// Les stats du dernier run entre crochets, puis le coût total : Last run [9s · 2 tools · 🡅12k 🡇3k · $0.12] - Total cost ~$1.42
+// Les stats du dernier run entre crochets, puis le coût total : Last turn [9s · 2 tools · 🡅12k 🡇3k · ~$0.12] - Total cost ~$1.42
 export const turnSegments = (turn: LastTurn | null, sessionUsd?: number, live?: LiveRun): StatSegment[] => {
   const dot = seg('  ·  ', true)
   const out: StatSegment[] = []
   if (live) {
     const shape = turn ?? BLANK_RUN
-    out.push(seg('Last run '), seg('['), seg(elapsed(live.elapsedMs), true), dot)
+    // Pendant le tour, la ligne parle du tour en cours, sous un libellé tiré au sort à son début.
+    out.push(seg(`${live.label ?? 'Working'} `), seg('['), seg(elapsed(live.elapsedMs), true), dot)
     out.push(seg(String(live.tools), true), seg(toolsLabel(live.tools)), dot)
     out.push(
       seg(
@@ -162,7 +164,7 @@ export const turnSegments = (turn: LastTurn | null, sessionUsd?: number, live?: 
     if (isCount(shape.costUsd)) out.push(dot, seg(spinDigits(`~${dollars(shape.costUsd)}`, live.frame)))
     out.push(seg(']'))
   } else if (turn) {
-    out.push(seg('Last run '), seg('['), seg(elapsed(turn.durationMs)), dot)
+    out.push(seg('Last turn '), seg('['), seg(elapsed(turn.durationMs)), dot)
     out.push(seg(`${turn.tools}${toolsLabel(turn.tools)}`), dot)
     out.push(seg(`${UP}${tokensLabel(turn.sent)} ${DOWN}${tokensLabel(turn.received)}`))
     if (isCount(turn.costUsd)) out.push(dot, seg(`~${dollars(turn.costUsd)}`))
@@ -221,6 +223,32 @@ async function measure($: EngineInterface): Promise<void> {
 let stopTick: (() => void) | undefined
 // Appels d'outils du tour en cours, sous-agents compris.
 let toolsThisTurn = 0
+// Libellé du tour en cours, tiré au sort à chaque message dans un sac : chaque mot sort une fois
+// avant que le sac ne se remplisse à nouveau.
+export const WORK_LABELS = [
+  'Working',
+  'Tasking',
+  'Running',
+  'Thinking',
+  'Building',
+  'Crafting',
+  'Cooking',
+  'Brewing',
+  'Forging',
+  'Weaving',
+  'Computing',
+  'Processing',
+  'Hustling',
+]
+let workLabel = 'Working'
+
+// Tire un mot du sac ; un sac vide est rempli de tous les mots, sauf celui qui vient de sortir.
+export const drawLabel = (bag: string[], last: string, random = Math.random): { label: string; bag: string[] } => {
+  const pool = bag.length > 0 ? bag : WORK_LABELS.filter(word => word !== last)
+  const index = Math.floor(random() * pool.length)
+
+  return { label: pool[index] ?? 'Working', bag: pool.filter((_, i) => i !== index) }
+}
 // Coût de la session au début du tour, pour en déduire le coût du tour.
 let costAtStart: number | undefined
 
@@ -239,6 +267,9 @@ function ensureTicker($: EngineInterface): void {
 
 async function startTurn($: EngineInterface): Promise<void> {
   toolsThisTurn = 0
+  const drawn = drawLabel(await read($, labelBag), workLabel)
+  workLabel = drawn.label
+  await update($, labelBag, () => drawn.bag)
   costAtStart = (await read($, snapshot))?.costUsd
   // Bandeau masqué : aucune animation à faire tourner.
   if (await read($, isHidden)) return
@@ -353,7 +384,9 @@ export const register: Register = (on, options) => {
     )
 
     const live =
-      state.phase === 'work' ? { frame: state.t, elapsedMs: state.t * TICK_MS, tools: toolsThisTurn } : undefined
+      state.phase === 'work'
+        ? { frame: state.t, elapsedMs: state.t * TICK_MS, tools: toolsThisTurn, label: workLabel }
+        : undefined
     const stats = showStats ? turnSegments(await read($, lastTurn), snap.costUsd, live) : []
     // Les paires de points des tokens et du coût sont dans l'accent, comme les séparateurs.
     const paintStat = (part: StatSegment) =>

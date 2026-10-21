@@ -13,6 +13,6 @@ export type Anim = { phase: 'idle' | 'work'; t: number; from: number[]; flash: n
 
 declare module 'claude-code' {
   interface PluginState {
-    'usage-bar': { snapshot: Snapshot | null; isHidden: boolean; anim: Anim; lastTurn: LastTurn | null }
+    'usage-bar': { snapshot: Snapshot | null; isHidden: boolean; anim: Anim; lastTurn: LastTurn | null; labelBag: string[] }
   }
 }
