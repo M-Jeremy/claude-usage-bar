@@ -35,6 +35,7 @@ test('la ligne du dernier tour', () => {
   expect(turnLine(old)).toBe('Last run [42s  ·  1 tool  ·  🡅1k 🡇200]')
   expect(turnLine(null, 0.5)).toBe('Total cost ~$0.50')
   expect(turnLine(null)).toBe('')
+  expect(turnLine(null, 0)).toBe('')
 })
 
 test('pendant le tour : durée et outils en direct, tokens et coût en paires de points', () => {

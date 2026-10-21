@@ -168,7 +168,8 @@ export const turnSegments = (turn: LastTurn | null, sessionUsd?: number, live?: 
     if (isCount(turn.costUsd)) out.push(dot, seg(`~${dollars(turn.costUsd)}`))
     out.push(seg(']'))
   }
-  if (isCount(sessionUsd)) {
+  // Un coût nul, en début de conversation, ne s'affiche pas.
+  if (isCount(sessionUsd) && sessionUsd > 0) {
     if (out.length > 0) out.push(seg('  -  ', true))
     out.push(seg(`Total cost ~${dollars(sessionUsd)}`))
   }
@@ -333,15 +334,17 @@ export const register: Register = (on, options) => {
     const contextValue = snap.context.percent ?? 0
     // Le contexte n'a pas de barre : son pourcentage, l'évolution du dernier tour et les tokens sur la fenêtre.
     const contextSuffix = `${deltaLabel(contextValue, state.from[0])} (${tokensLabel(snap.context.tokens ?? 0)}/${tokensLabel(snap.context.window)})`
+    // k garde la place de la jauge parmi les valeurs mesurées ; le contexte vide d'une conversation neuve est caché.
     const gauges = [
-      { label: 'Context', value: contextValue, suffix: contextSuffix, hasBar: false },
-      ...snap.rateLimits.map(limit => ({
+      { k: 0, label: 'Context', value: contextValue, suffix: contextSuffix, hasBar: false },
+      ...snap.rateLimits.map((limit, i) => ({
+        k: i + 1,
         label: LABELS[limit.kind] ?? limit.kind,
         value: limit.percentUsed,
         suffix: resetIn(limit.resetsAt, snap.measuredAt),
         hasBar: true,
       })),
-    ]
+    ].filter(gauge => gauge.hasBar || (snap.context.tokens ?? 0) > 0)
     const columns = e.surface === 'terminal' ? e.props.bodyColumns : REMOTE_COLUMNS
     const segments = segmentsFor(
       columns,
@@ -360,11 +363,16 @@ export const register: Register = (on, options) => {
           part.isAccent || /^[⠒⠤]+$/.test(piece) ? <Text color={accent}>{piece}</Text> : <Text dimColor>{piece}</Text>,
         )
 
+    // Rien à montrer, comme à l'ouverture d'une conversation : pas de bandeau du tout.
+    if (stats.length === 0 && gauges.length === 0) {
+      return next(e)
+    }
+
     return (
       <Box flexDirection="column">
         {stats.length > 0 && <Text wrap="truncate-end">{stats.flatMap(paintStat)}</Text>}
         <Box flexDirection="row" flexWrap="wrap" rowGap={0}>
-          {gauges.map(({ label, value, suffix, hasBar }, k) => {
+          {gauges.map(({ k, label, value, suffix, hasBar }, index) => {
             const hue = statusHex(value)
             const to = filledOf(value, segments)
             // Les puces voisines de même couleur partagent un seul texte.
@@ -385,7 +393,7 @@ export const register: Register = (on, options) => {
                 : [{ color: hue, text: percentText }]
 
             return (
-              <Box key={label} flexShrink={0} marginRight={k === gauges.length - 1 ? 0 : SEPARATOR_WIDTH}>
+              <Box key={label} flexShrink={0} marginRight={index === gauges.length - 1 ? 0 : SEPARATOR_WIDTH}>
                 <Text wrap="truncate-end">
                   <Text dimColor>{label} </Text>
                   {[...runs, ...percentRuns].map(run => (
