@@ -8,9 +8,9 @@ Context shows its percentage, what the last turn added and the tokens used out o
 
 An **optional** stats line can be shown above the bar:
 
-<img width="858" height="187" alt="image" src="https://github.com/user-attachments/assets/f04c3c08-f88c-4f95-9270-d83230373357" />
+<img width="861" height="185" alt="image" src="https://github.com/user-attachments/assets/4e699140-3a29-4654-894f-88d8230c5252" />
 
-It shows how long the last run took, how many tools it used, the tokens sent and received, and what it cost, followed by the total cost of the conversation (the same as `/cost`). While Claude is working, the duration and tool count update live.
+It shows how long the last turn took, how many tools it used, the tokens sent and received, and what it cost, followed by the total cost of the conversation (the same as `/cost`). While Claude is working, the duration and tool count update live.
 
 Costs are estimates at API list prices; with a Claude subscription, they are not what you are billed.
 
