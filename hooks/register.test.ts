@@ -28,7 +28,7 @@ test('la ligne du dernier tour', () => {
   expect(elapsed(84_000)).toBe('1m24s')
   expect(elapsed(3_720_000)).toBe('1h02m')
   expect(turnLine({ durationMs: 84_000, sent: 12_300, received: 3_100, tools: 7, costUsd: 0.12 }, 1.418)).toBe(
-    'Last run [1m24s  ·  7 tools  ·  🡅12k 🡇3k  ·  $0.12]  -  Total cost ~$1.42',
+    'Last run [1m24s  ·  7 tools  ·  🡅12k 🡇3k  ·  ~$0.12]  -  Total cost ~$1.42',
   )
   // Un tour enregistré par une version précédente n'a pas de coût : rien plutôt que NaN.
   const old = { durationMs: 42_000, sent: 1_000, received: 200, tools: 1 } as unknown as Parameters<typeof turnLine>[0]
@@ -40,9 +40,9 @@ test('la ligne du dernier tour', () => {
 test('pendant le tour : durée et outils en direct, tokens et coût en paires de points', () => {
   const last = { durationMs: 84_000, sent: 12_300, received: 3_100, tools: 7, costUsd: 0.12 }
   expect(turnLine(last, 1.418, { frame: 0, elapsedMs: 9_000, tools: 2 })).toBe(
-    'Last run [9s  ·  2 tools  ·  🡅⠒⠒k 🡇⠒k  ·  $⠒.⠒⠒]  -  Total cost ~$1.42',
+    'Last run [9s  ·  2 tools  ·  🡅⠒⠒k 🡇⠒k  ·  ~$⠒.⠒⠒]  -  Total cost ~$1.42',
   )
-  expect(turnLine(null, undefined, { frame: 0, elapsedMs: 0, tools: 0 })).toBe('Last run [0s  ·  0 tools  ·  🡅⠒⠒M 🡇⠒k  ·  $⠒.⠒⠒]')
+  expect(turnLine(null, undefined, { frame: 0, elapsedMs: 0, tools: 0 })).toBe('Last run [0s  ·  0 tools  ·  🡅⠒⠒M 🡇⠒k  ·  ~$⠒.⠒⠒]')
   const accents = turnSegments(last, 1.418, { frame: 0, elapsedMs: 9_000, tools: 2 }).filter(s => s.isAccent).map(s => s.text.trim())
   expect(accents).toEqual(['9s', '·', '2', '·', '·', '-'])
 })

@@ -159,13 +159,13 @@ export const turnSegments = (turn: LastTurn | null, sessionUsd?: number, live?: 
         `${UP}${spinDigits(tokensLabel(shape.sent), live.frame)} ${DOWN}${spinDigits(tokensLabel(shape.received), live.frame)}`,
       ),
     )
-    if (isCount(shape.costUsd)) out.push(dot, seg(spinDigits(dollars(shape.costUsd), live.frame)))
+    if (isCount(shape.costUsd)) out.push(dot, seg(spinDigits(`~${dollars(shape.costUsd)}`, live.frame)))
     out.push(seg(']'))
   } else if (turn) {
     out.push(seg('Last run '), seg('['), seg(elapsed(turn.durationMs)), dot)
     out.push(seg(`${turn.tools}${toolsLabel(turn.tools)}`), dot)
     out.push(seg(`${UP}${tokensLabel(turn.sent)} ${DOWN}${tokensLabel(turn.received)}`))
-    if (isCount(turn.costUsd)) out.push(dot, seg(dollars(turn.costUsd)))
+    if (isCount(turn.costUsd)) out.push(dot, seg(`~${dollars(turn.costUsd)}`))
     out.push(seg(']'))
   }
   if (isCount(sessionUsd)) {
