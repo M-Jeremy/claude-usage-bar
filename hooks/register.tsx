@@ -221,8 +221,12 @@ async function measure($: EngineInterface): Promise<void> {
 }
 
 let stopTick: (() => void) | undefined
-// Appels d'outils du tour en cours, sous-agents compris.
+// Un run va du message de l'utilisateur à la fin du dernier tour qu'il entraîne, sous-agents et tours
+// relancés par leurs résultats compris. Ses compteurs : début, outils, tokens envoyés et générés.
+let runStartedAt: number | undefined
 let toolsThisTurn = 0
+let runSent = 0
+let runReceived = 0
 // Libellé du tour en cours, tiré au sort à chaque message dans un sac : chaque mot sort une fois
 // avant que le sac ne se remplisse à nouveau.
 export const WORK_LABELS = [
@@ -249,7 +253,7 @@ export const drawLabel = (bag: string[], last: string, random = Math.random): { 
 
   return { label: pool[index] ?? 'Working', bag: pool.filter((_, i) => i !== index) }
 }
-// Coût de la session au début du tour, pour en déduire le coût du tour.
+// Coût de la session au début du run, pour en déduire le coût du run.
 let costAtStart: number | undefined
 
 // L'horloge des animations : elle tourne pendant un tour et s'arrête à sa fin.
@@ -265,16 +269,33 @@ function ensureTicker($: EngineInterface): void {
   stopTick = () => timer.cancel()
 }
 
-async function startTurn($: EngineInterface): Promise<void> {
+// Le bandeau travaille tant que la conversation a un tour en cours ou qu'un sous-agent tourne encore,
+// y compris en arrière-plan après la fin du tour. Le démarrage d'un agent lancé par un outil n'est pas
+// entendu : on le compte à l'appel de l'outil Agent, et on le décompte à la fin de son tour.
+let isMainTurn = false
+let runningAgents = 0
+const isBusy = (): boolean => isMainTurn || runningAgents > 0
+
+// Un nouveau message de l'utilisateur ouvre un run : compteurs à zéro, nouveau libellé.
+async function beginRun($: EngineInterface): Promise<void> {
+  runStartedAt = await $.clock.now()
   toolsThisTurn = 0
+  runSent = 0
+  runReceived = 0
+  costAtStart = (await read($, snapshot))?.costUsd
   const drawn = drawLabel(await read($, labelBag), workLabel)
   workLabel = drawn.label
   await update($, labelBag, () => drawn.bag)
-  costAtStart = (await read($, snapshot))?.costUsd
+  const from = percentsOf(await read($, snapshot))
+  await update($, anim, (): Anim => ({ phase: 'idle', t: 0, from, flash: [] }))
+}
+
+// Un tour commence : le bandeau passe en travail, sans remettre le run à zéro.
+async function startWork($: EngineInterface): Promise<void> {
+  if (runStartedAt === undefined) await beginRun($)
   // Bandeau masqué : aucune animation à faire tourner.
   if (await read($, isHidden)) return
-  const from = percentsOf(await read($, snapshot))
-  await update($, anim, (): Anim => ({ phase: 'work', t: 0, from, flash: [] }))
+  await update($, anim, (a): Anim => (a.phase === 'work' ? a : { ...a, phase: 'work' }))
   ensureTicker($)
 }
 
@@ -286,15 +307,28 @@ export const register: Register = (on, options) => {
 
   // Ces deux crochets encadrent l'envoi d'un message et chaque outil : si le bandeau échoue,
   // le .catch laisse le message ou l'outil suivre son cours.
+  // Seul un message de l'utilisateur ouvre un run ; le résultat d'un agent, remis comme message système
+  // (isMeta), ou un message tapé pendant le travail, prolonge le run en cours.
   on('prompt.submit', async ($, e, next) => {
-    await startTurn($)
+    if (!e.isMeta && !isBusy()) await beginRun($)
+
+    return next(e)
+  }).catch(($, e, next) => next(e))
+
+  on('turn.start', async ($, e, next) => {
+    if (!e.agentId) isMainTurn = true
+    await startWork($)
 
     return next(e)
   }).catch(($, e, next) => next(e))
 
   // Chaque outil terminé suit une réponse du modèle : les pourcentages avancent en direct.
   on('tool.call', async ($, e, next) => {
+    const isAgent = e.tool === 'Agent'
+    if (isAgent) runningAgents += 1
     const result = await next(e)
+    // Un appel refusé ou en erreur n'a lancé aucun agent : on le retire du compte.
+    if (isAgent && (result.deny !== undefined || result.isError)) runningAgents = Math.max(0, runningAgents - 1)
     toolsThisTurn += 1
     await measure($)
 
@@ -303,18 +337,27 @@ export const register: Register = (on, options) => {
 
   on('turn.complete', async ($, e, next) => {
     await measure($)
-    // La fin du tour d'un sous-agent ne termine pas celui de la conversation.
-    if (!e.agentId) {
+    const usage = e.usage
+    if (usage) {
+      runSent += usage.input_tokens + usage.cache_read_input_tokens + usage.cache_creation_input_tokens
+      runReceived += usage.output_tokens
+    }
+    if (e.agentId) runningAgents = Math.max(0, runningAgents - 1)
+    else isMainTurn = false
+    // Une interruption arrête tout, y compris les sous-agents dont on n'entendrait pas la fin.
+    if (!e.agentId && e.isAborted) runningAgents = 0
+    // Plus rien ne tourne : le run s'arrête ici, jusqu'à un éventuel tour relancé par un résultat.
+    if (!isBusy()) {
       await update($, anim, (a): Anim => ({ ...a, phase: 'idle', t: 0 }))
+      const now = await $.clock.now()
       const after = (await read($, snapshot))?.costUsd
-      const usage = e.usage
       await update(
         $,
         lastTurn,
         (): LastTurn => ({
-          durationMs: e.durationMs,
-          sent: usage ? usage.input_tokens + usage.cache_read_input_tokens + usage.cache_creation_input_tokens : 0,
-          received: usage?.output_tokens ?? 0,
+          durationMs: now - (runStartedAt ?? now),
+          sent: runSent,
+          received: runReceived,
           costUsd: isCount(costAtStart) && isCount(after) ? after - costAtStart : undefined,
           tools: toolsThisTurn,
         }),
@@ -330,6 +373,9 @@ export const register: Register = (on, options) => {
       description: 'Show or hide the usage bar above the message box',
     })
     // Un rechargement coupe l'horloge : une animation restée en cours repart au repos.
+    isMainTurn = false
+    runningAgents = 0
+    runStartedAt = undefined
     await update($, anim, (a): Anim => ({ ...a, phase: 'idle', t: 0 }))
     await measure($)
 
@@ -385,7 +431,12 @@ export const register: Register = (on, options) => {
 
     const live =
       state.phase === 'work'
-        ? { frame: state.t, elapsedMs: state.t * TICK_MS, tools: toolsThisTurn, label: workLabel }
+        ? {
+            frame: state.t,
+            elapsedMs: (await $.clock.now()) - (runStartedAt ?? 0),
+            tools: toolsThisTurn,
+            label: workLabel,
+          }
         : undefined
     const stats = showStats ? turnSegments(await read($, lastTurn), snap.costUsd, live) : []
     // Les paires de points des tokens et du coût sont dans l'accent, comme les séparateurs.

@@ -1,6 +1,6 @@
 {
   "name": "usage-bar",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "A line above the message box with your context fill and your session (5h) and weekly usage limits, plus an optional stats line for the last run",
   "author": {
     "name": "M-Jeremy"
