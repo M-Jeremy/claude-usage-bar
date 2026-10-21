@@ -1,18 +1,23 @@
 {
   "name": "usage-bar",
-  "version": "0.2.2",
-  "description": "Bandeau au-dessus du message : contexte et limites d'usage 5h et semaine",
+  "version": "0.2.3",
+  "description": "A line above the message box with your context fill and your session (5h) and weekly usage limits, plus an optional stats line for the last run",
+  "author": {
+    "name": "M-Jeremy"
+  },
+  "homepage": "https://github.com/M-Jeremy/claude-usage-bar",
+  "repository": "https://github.com/M-Jeremy/claude-usage-bar",
   "userConfig": {
     "accent": {
       "type": "string",
-      "title": "Couleur d'accent",
-      "description": "Couleur des puces, de la houle et des clignotements, en hexadécimal (#e8876a)",
+      "title": "Accent color",
+      "description": "Hex color of the wave, the highlights and the separators (#e8876a)",
       "default": "#e8876a"
     },
     "showStats": {
       "type": "boolean",
-      "title": "Ligne de statistiques",
-      "description": "Afficher au-dessus des jauges la durée, les tokens, le cache, les outils et le coût du dernier tour, et le coût de la session",
+      "title": "Stats line",
+      "description": "Show the last run's duration, tools, tokens and cost, and the conversation's total cost, above the bar",
       "default": false
     }
   }

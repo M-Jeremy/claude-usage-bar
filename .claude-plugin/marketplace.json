@@ -1,5 +1,13 @@
 {
   "name": "claude-usage-bar",
-  "owner": { "name": "M-Jeremy" },
-  "plugins": [{ "name": "usage-bar", "source": "./" }]
+  "description": "usage-bar, a Claude Code mod that shows your context and usage limits above the message box",
+  "owner": {
+    "name": "M-Jeremy"
+  },
+  "plugins": [
+    {
+      "name": "usage-bar",
+      "source": "./"
+    }
+  ]
 }

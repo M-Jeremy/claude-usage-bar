@@ -11,7 +11,7 @@ const lastTurn = atom({ plugin: 'usage-bar', key: 'lastTurn' } as const, null)
 const LABELS: Record<string, string> = {
   five_hour: 'Session',
   seven_day: 'Week',
-  spend_limit: 'Plafond',
+  spend_limit: 'Spend limit',
 }
 
 const MIN_SEGMENTS = 8
@@ -295,7 +295,7 @@ export const register: Register = (on, options) => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'usage-bar',
-      description: "Afficher ou masquer le bandeau d'usage au-dessus du message",
+      description: 'Show or hide the usage bar above the message box',
     })
     // Un rechargement coupe l'horloge : une animation restée en cours repart au repos.
     await update($, anim, (a): Anim => ({ ...a, phase: 'idle', t: 0 }))
@@ -308,7 +308,7 @@ export const register: Register = (on, options) => {
     const hidden = await update($, isHidden, value => !value)
 
     return {
-      text: hidden ? "Bandeau d'usage masqué." : "Bandeau d'usage affiché.",
+      text: hidden ? 'Usage bar hidden.' : 'Usage bar shown.',
     }
   })
 
