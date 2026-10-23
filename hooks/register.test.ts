@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { WORK_LABELS, accentOf, drawLabel, deltaLabel, duration, elapsed, turnLine, turnSegments, filledOf, isFlashing, segmentsFor, shade, shadow, statusHex, tokensLabel } from './register'
+import { RANDOM_ACCENTS, WORK_LABELS, accentOf, drawAccent, isRandomAccent, drawLabel, deltaLabel, duration, elapsed, turnLine, turnSegments, filledOf, isFlashing, segmentsFor, shade, shadow, statusHex, tokensLabel } from './register'
 
 const USAGE = {
   startedAt: 0,
@@ -12,6 +12,7 @@ const USAGE = {
 test('formate barres et durées', () => {
   expect(filledOf(50, 14)).toBe(7)
   expect(duration(3_900_000)).toBe('01h05')
+  expect(duration(40 * 60_000)).toBe('40m')
 })
 
 test("le contexte affiche l'évolution du tour et les tokens sur la fenêtre", () => {
@@ -28,11 +29,11 @@ test('la ligne du dernier tour', () => {
   expect(elapsed(84_000)).toBe('1m24s')
   expect(elapsed(3_720_000)).toBe('1h02m')
   expect(turnLine({ durationMs: 84_000, sent: 12_300, received: 3_100, tools: 7, costUsd: 0.12 }, 1.418)).toBe(
-    'Last turn [1m24s  ·  7 tools  ·  🡅12k 🡇3k  ·  ~$0.12]  -  Total cost ~$1.42',
+    'Last turn [1m24s  ·  7 tools  ·  ↑12k ↓3k  ·  ~$0.12]  -  Total cost ~$1.42',
   )
   // Un tour enregistré par une version précédente n'a pas de coût : rien plutôt que NaN.
   const old = { durationMs: 42_000, sent: 1_000, received: 200, tools: 1 } as unknown as Parameters<typeof turnLine>[0]
-  expect(turnLine(old)).toBe('Last turn [42s  ·  1 tool  ·  🡅1k 🡇200]')
+  expect(turnLine(old)).toBe('Last turn [42s  ·  1 tool  ·  ↑1k ↓200]')
   expect(turnLine(null, 0.5)).toBe('Total cost ~$0.50')
   expect(turnLine(null)).toBe('')
   expect(turnLine(null, 0)).toBe('')
@@ -41,9 +42,9 @@ test('la ligne du dernier tour', () => {
 test('pendant le tour : durée et outils en direct, tokens et coût en paires de points', () => {
   const last = { durationMs: 84_000, sent: 12_300, received: 3_100, tools: 7, costUsd: 0.12 }
   expect(turnLine(last, 1.418, { frame: 0, elapsedMs: 9_000, tools: 2 })).toBe(
-    'Working [9s  ·  2 tools  ·  🡅⠒⠒k 🡇⠒k  ·  ~$⠒.⠒⠒]  -  Total cost ~$1.42',
+    'Working [9s  ·  2 tools  ·  ↑⠒⠒k ↓⠒k  ·  ~$⠒.⠒⠒]  -  Total cost ~$1.42',
   )
-  expect(turnLine(null, undefined, { frame: 0, elapsedMs: 0, tools: 0 })).toBe('Working [0s  ·  0 tools  ·  🡅⠒⠒M 🡇⠒k  ·  ~$⠒.⠒⠒]')
+  expect(turnLine(null, undefined, { frame: 0, elapsedMs: 0, tools: 0 })).toBe('Working [0s  ·  0 tools  ·  ↑⠒⠒M ↓⠒k  ·  ~$⠒.⠒⠒]')
   const accents = turnSegments(last, 1.418, { frame: 0, elapsedMs: 9_000, tools: 2 }).filter(s => s.isAccent).map(s => s.text.trim())
   expect(accents).toEqual(['9s', '·', '2', '·', '·', '-'])
 })
@@ -60,6 +61,17 @@ test('chaque libellé de travail sort une fois avant de revenir', () => {
   }
   expect([...seen].sort()).toEqual([...WORK_LABELS].sort())
   expect(drawLabel(bag, last).label).not.toBe(last)
+})
+
+test('accent random : une couleur de la liste, jamais deux fois de suite', () => {
+  expect(isRandomAccent('random')).toBe(true)
+  expect(isRandomAccent(' Random ')).toBe(true)
+  expect(isRandomAccent('#4ec98a')).toBe(false)
+  for (const last of RANDOM_ACCENTS) {
+    const next = drawAccent(last)
+    expect(RANDOM_ACCENTS).toContain(next)
+    expect(next).not.toBe(last)
+  }
 })
 
 test('les barres se partagent la place laissée par les textes', () => {
@@ -80,6 +92,8 @@ test("la couleur d'accent se règle, avec un repli sur l'orange", () => {
   expect(accentOf('#4fc1ff')).toBe('#4fc1ff')
   expect(accentOf('bleu')).toBe('#e8876a')
   expect(accentOf(undefined)).toBe('#e8876a')
+  expect(accentOf('green')).toBe('#4ec98a')
+  expect(accentOf(' Blue ')).toBe('#4fc1ff')
 })
 
 test('la couleur de statut est blanche, jaune ou rouge', () => {

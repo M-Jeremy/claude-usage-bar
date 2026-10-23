@@ -7,6 +7,7 @@ const snapshot = atom({ plugin: 'usage-bar', key: 'snapshot' } as const, null)
 const isHidden = atom({ plugin: 'usage-bar', key: 'isHidden' } as const, false)
 const anim = atom({ plugin: 'usage-bar', key: 'anim' } as const, { phase: 'idle', t: 0, from: [], flash: [] })
 const lastTurn = atom({ plugin: 'usage-bar', key: 'lastTurn' } as const, null)
+const randomAccent = atom({ plugin: 'usage-bar', key: 'randomAccent' } as const, null as string | null)
 const labelBag = atom({ plugin: 'usage-bar', key: 'labelBag' } as const, [] as string[])
 
 const LABELS: Record<string, string> = {
@@ -57,9 +58,35 @@ const mix = (a: string, b: string, k: number): string => {
   return `#${out.map(v => v.toString(16).padStart(2, '0')).join('')}`
 }
 
-// La couleur d'accent des réglages, ou l'orange par défaut si elle n'est pas un hexadécimal.
-export const accentOf = (accent: unknown): string =>
-  typeof accent === 'string' && /^#[0-9a-f]{6}$/i.test(accent.trim()) ? accent.trim() : DEFAULT_ACCENT
+// Les couleurs qu'on peut donner par leur nom anglais dans le réglage accent.
+export const NAMED_ACCENTS: Record<string, string> = {
+  orange: '#e8876a',
+  green: '#4ec98a',
+  blue: '#4fc1ff',
+  purple: '#b48ead',
+  pink: '#f38ba8',
+  teal: '#2ac3a2',
+  lavender: '#a6a8ff',
+  peach: '#ff9e64',
+}
+
+// La couleur d'accent des réglages : un hexadécimal ou un nom de NAMED_ACCENTS, sinon l'orange par défaut.
+export const accentOf = (accent: unknown): string => {
+  const value = typeof accent === 'string' ? accent.trim() : ''
+  if (/^#[0-9a-f]{6}$/i.test(value)) return value
+
+  return NAMED_ACCENTS[value.toLowerCase()] ?? DEFAULT_ACCENT
+}
+
+// Le réglage accent à « random » : une couleur tirée parmi celles-ci à chaque message, jamais la même deux fois de suite.
+export const isRandomAccent = (accent: unknown): boolean =>
+  typeof accent === 'string' && accent.trim().toLowerCase() === 'random'
+export const RANDOM_ACCENTS = Object.values(NAMED_ACCENTS)
+export const drawAccent = (last: string | null, random = Math.random): string => {
+  const pool = RANDOM_ACCENTS.filter(color => color !== last)
+
+  return pool[Math.floor(random() * pool.length)] ?? DEFAULT_ACCENT
+}
 
 // 'fill' et 'empty' : couleurs de statut et de vide ; sinon une couleur calculée.
 export type Shade = 'fill' | 'empty' | string
@@ -120,8 +147,8 @@ export const elapsed = (ms: number): string => {
 }
 
 // La ligne du dernier tour : durée, outils, tokens envoyés et générés et coût, puis coût total estimé de la conversation.
-const UP = '🡅'
-const DOWN = '🡇'
+const UP = '↑'
+const DOWN = '↓'
 
 const isCount = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n)
 const dollars = (usd: number): string => `$${usd.toFixed(2)}`
@@ -147,7 +174,7 @@ const toolsLabel = (n: number): string => (n === 1 ? ' tool' : ' tools')
 // Le tour en cours : durée et outils en direct dans l'accent, tokens et coût en paires de points.
 export type LiveRun = { frame: number; elapsedMs: number; tools: number; label?: string }
 
-// Les stats du dernier run entre crochets, puis le coût total : Last turn [9s · 2 tools · 🡅12k 🡇3k · ~$0.12] - Total cost ~$1.42
+// Les stats du dernier run entre crochets, puis le coût total : Last turn [9s · 2 tools · ↑12k ↓3k · ~$0.12] - Total cost ~$1.42
 export const turnSegments = (turn: LastTurn | null, sessionUsd?: number, live?: LiveRun): StatSegment[] => {
   const dot = seg('  ·  ', true)
   const out: StatSegment[] = []
@@ -184,9 +211,11 @@ export const turnLine = (turn: LastTurn | null, sessionUsd?: number, live?: Live
     .map(part => part.text)
     .join('')
 
+// Temps avant la remise à zéro d'une limite : 40m sous une heure, 01h05 au-delà.
 export const duration = (ms: number): string => {
   const minutes = Math.max(0, Math.floor(ms / 60000))
   const hours = Math.floor(minutes / 60)
+  if (hours === 0) return `${minutes}m`
 
   return `${String(hours).padStart(2, '0')}h${String(minutes % 60).padStart(2, '0')}`
 }
@@ -220,13 +249,6 @@ async function measure($: EngineInterface): Promise<void> {
   })
 }
 
-let stopTick: (() => void) | undefined
-// Un run va du message de l'utilisateur à la fin du dernier tour qu'il entraîne, sous-agents et tours
-// relancés par leurs résultats compris. Ses compteurs : début, outils, tokens envoyés et générés.
-let runStartedAt: number | undefined
-let toolsThisTurn = 0
-let runSent = 0
-let runReceived = 0
 // Libellé du tour en cours, tiré au sort à chaque message dans un sac : chaque mot sort une fois
 // avant que le sac ne se remplisse à nouveau.
 export const WORK_LABELS = [
@@ -244,7 +266,6 @@ export const WORK_LABELS = [
   'Processing',
   'Hustling',
 ]
-let workLabel = 'Working'
 
 // Tire un mot du sac ; un sac vide est rempli de tous les mots, sauf celui qui vient de sortir.
 export const drawLabel = (bag: string[], last: string, random = Math.random): { label: string; bag: string[] } => {
@@ -253,8 +274,20 @@ export const drawLabel = (bag: string[], last: string, random = Math.random): { 
 
   return { label: pool[index] ?? 'Working', bag: pool.filter((_, i) => i !== index) }
 }
-// Coût de la session au début du run, pour en déduire le coût du run.
+
+// État du module, remis à zéro à chaque rechargement.
+let stopTick: (() => void) | undefined
+// Vrai quand le réglage accent vaut « random ».
+let isRandom = false
+// Un run va du message de l'utilisateur à la fin du dernier tour qu'il entraîne, sous-agents et tours
+// relancés par leurs résultats compris : son début, son libellé, le coût de la conversation à son début
+// et ses compteurs d'outils et de tokens envoyés et générés.
+let runStartedAt: number | undefined
+let workLabel = 'Working'
 let costAtStart: number | undefined
+let runTools = 0
+let runSent = 0
+let runReceived = 0
 
 // L'horloge des animations : elle tourne pendant un tour et s'arrête à sa fin.
 function ensureTicker($: EngineInterface): void {
@@ -276,18 +309,19 @@ let isMainTurn = false
 let runningAgents = 0
 const isBusy = (): boolean => isMainTurn || runningAgents > 0
 
-// Un nouveau message de l'utilisateur ouvre un run : compteurs à zéro, nouveau libellé.
+// Un nouveau message de l'utilisateur ouvre un run : compteurs à zéro, nouveau libellé, nouvelle couleur en mode random.
 async function beginRun($: EngineInterface): Promise<void> {
+  if (isRandom) await update($, randomAccent, last => drawAccent(last))
+  const snap = await read($, snapshot)
   runStartedAt = await $.clock.now()
-  toolsThisTurn = 0
+  runTools = 0
   runSent = 0
   runReceived = 0
-  costAtStart = (await read($, snapshot))?.costUsd
+  costAtStart = snap?.costUsd
   const drawn = drawLabel(await read($, labelBag), workLabel)
   workLabel = drawn.label
   await update($, labelBag, () => drawn.bag)
-  const from = percentsOf(await read($, snapshot))
-  await update($, anim, (): Anim => ({ phase: 'idle', t: 0, from, flash: [] }))
+  await update($, anim, (): Anim => ({ phase: 'idle', t: 0, from: percentsOf(snap), flash: [] }))
 }
 
 // Un tour commence : le bandeau passe en travail, sans remettre le run à zéro.
@@ -300,13 +334,15 @@ async function startWork($: EngineInterface): Promise<void> {
 }
 
 export const register: Register = (on, options) => {
-  const accent = accentOf(options.accent)
+  const fixedAccent = accentOf(options.accent)
+  isRandom = isRandomAccent(options.accent)
   // La ligne de statistiques au-dessus des jauges, affichée seulement si le réglage showStats vaut true.
   const showStats = options.showStats === true
   stopTick = undefined
 
-  // Ces deux crochets encadrent l'envoi d'un message et chaque outil : si le bandeau échoue,
-  // le .catch laisse le message ou l'outil suivre son cours.
+  // Les crochets de l'envoi d'un message, du début d'un tour et de chaque outil ont un .catch : si le bandeau
+  // échoue, le message, le tour ou l'outil suit son cours.
+
   // Seul un message de l'utilisateur ouvre un run ; le résultat d'un agent, remis comme message système
   // (isMeta), ou un message tapé pendant le travail, prolonge le run en cours.
   on('prompt.submit', async ($, e, next) => {
@@ -329,7 +365,7 @@ export const register: Register = (on, options) => {
     const result = await next(e)
     // Un appel refusé ou en erreur n'a lancé aucun agent : on le retire du compte.
     if (isAgent && (result.deny !== undefined || result.isError)) runningAgents = Math.max(0, runningAgents - 1)
-    toolsThisTurn += 1
+    runTools += 1
     await measure($)
 
     return result
@@ -359,7 +395,7 @@ export const register: Register = (on, options) => {
           sent: runSent,
           received: runReceived,
           costUsd: isCount(costAtStart) && isCount(after) ? after - costAtStart : undefined,
-          tools: toolsThisTurn,
+          tools: runTools,
         }),
       )
     }
@@ -372,6 +408,7 @@ export const register: Register = (on, options) => {
       name: 'usage-bar',
       description: 'Show or hide the usage bar above the message box',
     })
+    if (isRandom && (await read($, randomAccent)) === null) await update($, randomAccent, () => drawAccent(null))
     // Un rechargement coupe l'horloge : une animation restée en cours repart au repos.
     isMainTurn = false
     runningAgents = 0
@@ -405,6 +442,7 @@ export const register: Register = (on, options) => {
 
     const state = await read($, anim)
     const { Box, Text } = $.ui.resolve(e)
+    const accent = isRandom ? ((await read($, randomAccent)) ?? DEFAULT_ACCENT) : fixedAccent
     const paint = (s: Shade, value: number): string =>
       s === 'fill' ? statusHex(value) : s === 'empty' ? EMPTY_COLOR : s
 
@@ -434,7 +472,7 @@ export const register: Register = (on, options) => {
         ? {
             frame: state.t,
             elapsedMs: (await $.clock.now()) - (runStartedAt ?? 0),
-            tools: toolsThisTurn,
+            tools: runTools,
             label: workLabel,
           }
         : undefined

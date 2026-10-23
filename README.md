@@ -37,13 +37,20 @@ claude plugin install usage-bar --marketplace M-Jeremy/claude-usage-bar
 In the desktop app: click + next to the message box, then Plugins, Add marketplace with `M-Jeremy/claude-usage-bar`, then Add plugin.
 
 # Options
+
+Both options can be set from **Manage Plugins** (`/plugin`, then usage-bar, then Configure), or in your `~/.claude/settings.json` as shown below.
+
 ## Change the color
 
-The accent color is orange by default. To change it, add this to your `~/.claude/settings.json`, with the color of your choice as a hex code:
+The accent color is orange by default. It accepts:
+
+- a hex code, such as `#4ec98a`;
+- a color name: `orange`, `green`, `blue`, `purple`, `pink`, `teal`, `lavender` or `peach`;
+- `random`, for a new color at each message, never the same twice in a row.
 
 ```json
 "pluginConfigs": {
-  "usage-bar@claude-usage-bar": { "options": { "accent": "#4ec98a" } }
+  "usage-bar@claude-usage-bar": { "options": { "accent": "green" } }
 }
 ```
 ## Show the stats line

@@ -12,7 +12,7 @@
     "accent": {
       "type": "string",
       "title": "Accent color",
-      "description": "Hex color of the wave, the highlights and the separators (#e8876a)",
+      "description": "Color of the wave, the highlights and the separators: a hex code (#e8876a), a name (orange, green, blue, purple, pink, teal, lavender, peach), or random for a new color at each message",
       "default": "#e8876a"
     },
     "showStats": {
