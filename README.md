@@ -8,7 +8,7 @@ Context shows its percentage, what the last turn added and the tokens used out o
 
 An **optional** stats line can be shown above the bar:
 
-<img width="861" height="185" alt="image" src="https://github.com/user-attachments/assets/4e699140-3a29-4654-894f-88d8230c5252" />
+<img width="692" height="153" alt="Screenshot 2026-10-23 at 14 48 45" src="https://github.com/user-attachments/assets/462fc1e5-3bc7-4fd0-8136-37935522c028" />
 
 It shows how long the last turn took, how many tools it used, the tokens sent and received, and what it cost, followed by the total cost of the conversation (the same as `/cost`). While Claude is working, the duration and tool count update live.
 
