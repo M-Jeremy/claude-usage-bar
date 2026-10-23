@@ -7,6 +7,7 @@
   },
   "homepage": "https://github.com/M-Jeremy/claude-usage-bar",
   "repository": "https://github.com/M-Jeremy/claude-usage-bar",
+  "license": "MIT",
   "userConfig": {
     "accent": {
       "type": "string",
