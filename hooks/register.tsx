@@ -129,13 +129,6 @@ export const tokensLabel = (tokens: number): string =>
       ? `${Math.round(tokens / 1000)}k`
       : `${Math.round(tokens)}`
 
-// Ce que le dernier tour a changé, en points : +4%, −2% ; rien quand il n'a rien changé.
-export const deltaLabel = (value: number, from: number | undefined): string => {
-  const delta = Math.round(value - (from ?? value))
-
-  return delta > 0 ? ` +${delta}%` : delta < 0 ? ` −${-delta}%` : ''
-}
-
 // Durée d'un tour : 42s, 1m24s, 1h02m.
 export const elapsed = (ms: number): string => {
   const seconds = Math.max(0, Math.round(ms / 1000))
@@ -447,15 +440,16 @@ export const register: Register = (on, options) => {
       s === 'fill' ? statusHex(value) : s === 'empty' ? EMPTY_COLOR : s
 
     const contextValue = snap.context.percent ?? 0
-    // Le contexte n'a pas de barre : son pourcentage, l'évolution du dernier tour et les tokens sur la fenêtre.
-    const contextSuffix = `${deltaLabel(contextValue, state.from[0])} (${tokensLabel(snap.context.tokens ?? 0)}/${tokensLabel(snap.context.window)})`
+    // Le contexte n'a pas de barre : seulement les tokens sur la fenêtre, colorés selon son remplissage.
+    const contextText = `${tokensLabel(snap.context.tokens ?? 0)}/${tokensLabel(snap.context.window)}`
     // k garde la place de la jauge parmi les valeurs mesurées ; le contexte vide d'une conversation neuve est caché.
     const gauges = [
-      { k: 0, label: 'Context', value: contextValue, suffix: contextSuffix, hasBar: false },
+      { k: 0, label: 'Context', value: contextValue, text: contextText, suffix: '', hasBar: false },
       ...snap.rateLimits.map((limit, i) => ({
         k: i + 1,
         label: LABELS[limit.kind] ?? limit.kind,
         value: limit.percentUsed,
+        text: ` ${limit.percentUsed}%`,
         suffix: resetIn(limit.resetsAt, snap.measuredAt),
         hasBar: true,
       })),
@@ -463,7 +457,7 @@ export const register: Register = (on, options) => {
     const columns = e.surface === 'terminal' ? e.props.bodyColumns : REMOTE_COLUMNS
     const segments = segmentsFor(
       columns,
-      gauges.map(({ label, suffix }) => `${label}  100%${suffix}`),
+      gauges.map(({ label, text, suffix, hasBar }) => `${label} ${hasBar ? ' 100%' : text}${suffix}`),
       gauges.filter(gauge => gauge.hasBar).length,
     )
 
@@ -494,7 +488,7 @@ export const register: Register = (on, options) => {
       <Box flexDirection="column">
         {stats.length > 0 && <Text wrap="truncate-end">{stats.flatMap(paintStat)}</Text>}
         <Box flexDirection="row" flexWrap="wrap" rowGap={0}>
-          {gauges.map(({ k, label, value, suffix, hasBar }, index) => {
+          {gauges.map(({ k, label, value, text, suffix, hasBar }, index) => {
             const hue = statusHex(value)
             const to = filledOf(value, segments)
             // Les puces voisines de même couleur partagent un seul texte.
@@ -505,20 +499,19 @@ export const register: Register = (on, options) => {
               if (last && last.color === color) last.text += BULLET
               else runs.push({ color, text: BULLET })
             }
-            const percentText = `${hasBar ? ' ' : ''}${value}%`
-            // Pendant le tour, la houle passe aussi sur le pourcentage du contexte, caractère par caractère,
+            // Pendant le tour, la houle passe aussi sur les tokens du contexte, caractère par caractère,
             // sauf quand il vient de gagner un point et s'allume dans la couleur d'accent.
-            const percentRuns = isFlashing(state, k)
-              ? [{ color: accent, text: percentText }]
+            const valueRuns = isFlashing(state, k)
+              ? [{ color: accent, text }]
               : !hasBar && state.phase === 'work'
-                ? [...percentText].map((text, i) => ({ color: shadow(state, i, hue) ?? hue, text }))
-                : [{ color: hue, text: percentText }]
+                ? [...text].map((char, i) => ({ color: shadow(state, i, hue) ?? hue, text: char }))
+                : [{ color: hue, text }]
 
             return (
               <Box key={label} flexShrink={0} marginRight={index === gauges.length - 1 ? 0 : SEPARATOR_WIDTH}>
                 <Text wrap="truncate-end">
                   <Text dimColor>{label} </Text>
-                  {[...runs, ...percentRuns].map(run => (
+                  {[...runs, ...valueRuns].map(run => (
                     <Text color={run.color}>{run.text}</Text>
                   ))}
                   <Text dimColor>{suffix}</Text>
