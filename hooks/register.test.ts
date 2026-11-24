@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { RANDOM_ACCENTS, WORK_LABELS, accentOf, drawAccent, isRandomAccent, drawLabel, deltaLabel, duration, elapsed, turnLine, turnSegments, filledOf, isFlashing, segmentsFor, shade, shadow, statusHex, tokensLabel } from './register'
+import { RANDOM_ACCENTS, WORK_LABELS, accentOf, drawAccent, isRandomAccent, drawLabel, duration, elapsed, turnLine, turnSegments, filledOf, isFlashing, segmentsFor, shade, shadow, statusHex, tokensLabel } from './register'
 
 const USAGE = {
   startedAt: 0,
@@ -15,10 +15,7 @@ test('formate barres et durées', () => {
   expect(duration(40 * 60_000)).toBe('40m')
 })
 
-test("le contexte affiche l'évolution du tour et les tokens sur la fenêtre", () => {
-  expect(deltaLabel(37, 33)).toBe(' +4%')
-  expect(deltaLabel(20, 37)).toBe(' −17%')
-  expect(deltaLabel(37, 37)).toBe('')
+test('le contexte affiche les tokens sur la fenêtre', () => {
   expect(tokensLabel(74_200)).toBe('74k')
   expect(tokensLabel(1_000_000)).toBe('1M')
   expect(tokensLabel(640)).toBe('640')
@@ -75,7 +72,7 @@ test('accent random : une couleur de la liste, jamais deux fois de suite', () =>
 })
 
 test('les barres se partagent la place laissée par les textes', () => {
-  expect(segmentsFor(102, ['Context  100% +4% (74k/200k)', 'Session  100% (↻ 01h05)', 'Week  100% (↻ 67h45)'], 2)).toBe(14)
+  expect(segmentsFor(102, ['Context 74k/200k', 'Session  100% (↻ 01h05)', 'Week  100% (↻ 67h45)'], 2)).toBe(20)
   expect(segmentsFor(30, ['Context  100%', '5h  100%'])).toBe(8)
 })
 
@@ -109,7 +106,7 @@ test('au-dessus des seuils, la houle prend leur couleur sur le plein', () => {
   expect(crests.some(c => c !== 'fill')).toBe(true)
 })
 
-test('pendant le tour, la houle assombrit aussi le pourcentage du contexte', () => {
+test('pendant le tour, la houle assombrit aussi les tokens du contexte', () => {
   const work = { phase: 'work' as const, t: 0, from: [], flash: [] }
   const chars = Array.from({ length: 8 }, (_, i) => shadow(work, i))
   expect(chars.some(c => c !== undefined)).toBe(true)
@@ -142,7 +139,8 @@ for (const surface of ['terminal', 'desktop', 'vscode'] as const) {
       component: 'AbovePrompt',
       props: { hasSurvey: false, isWorking: true, maxRows: 4, bodyColumns: 120, scroll: { offset: 0, bodyRows: 40 }, view: {} },
     })
-    expect(await pane.findAll({ type: 'Text', text: /25%/ })).not.toHaveLength(0)
+    expect(await pane.findAll({ type: 'Text', text: /50k\/200k/ })).not.toHaveLength(0)
+    expect(await pane.findAll({ type: 'Text', text: /25%/ })).toHaveLength(0)
     expect(await pane.findAll({ type: 'Text', text: /Session/ })).not.toHaveLength(0)
     expect(await pane.findAll({ type: 'Text', text: /1\.50 \$/ })).toHaveLength(0)
   })
